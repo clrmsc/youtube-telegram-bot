@@ -71,6 +71,11 @@ UPDATE_INTERVAL_HOURS = 24
 COOKIES_FROM_BROWSER = os.environ.get("COOKIES_FROM_BROWSER", "").strip()
 COOKIES_FILE = Path(os.environ.get("COOKIES_FILE", "/home/pi/youtube-bot/cookies.txt"))
 
+# JavaScript-движок для решения "n-challenge" YouTube.
+# По умолчанию yt-dlp использует только deno. Чтобы задействовать другой
+# движок (например установленный из apt node), укажи его здесь: JS_RUNTIME=node
+JS_RUNTIME = os.environ.get("JS_RUNTIME", "").strip()
+
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=logging.INFO,
@@ -146,6 +151,10 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
         cmd += ["--cookies-from-browser", COOKIES_FROM_BROWSER]
     elif COOKIES_FILE.exists():
         cmd += ["--cookies", str(COOKIES_FILE)]
+
+    # JS-движок для решения n-challenge (если задан явно, например node).
+    if JS_RUNTIME:
+        cmd += ["--js-runtimes", JS_RUNTIME]
 
     if quality == "mp3":
         cmd += [
