@@ -8,11 +8,12 @@ Type=simple
 # Замени pi на своего пользователя, если другой
 User=pi
 WorkingDirectory=/home/pi/youtube-bot
-# Токен и настройки. Можно вынести в EnvironmentFile (см. ниже).
-Environment=BOT_TOKEN=ВСТАВЬ_СЮДА_ТОКЕН
-Environment=SAVE_DIR=/media/share/youtube
-# Опционально: ограничить доступ конкретными user_id (через запятую)
-# Environment=ALLOWED_USER_IDS=123456789
+# Токен и настройки читаются из файла .env (создаётся вручную, в git не попадает).
+# Формат строк: KEY=VALUE, например:
+#   BOT_TOKEN=123456:ABC...
+#   SAVE_DIR=/media/share/youtube
+#   ALLOWED_USER_IDS=123456789
+EnvironmentFile=/home/pi/youtube-bot/.env
 # Виртуальное окружение из шага установки:
 ExecStart=/home/pi/youtube-bot/venv/bin/python /home/pi/youtube-bot/bot.py
 Restart=always
