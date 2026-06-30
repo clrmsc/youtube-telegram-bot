@@ -61,6 +61,11 @@ TELEGRAM_UPLOAD_LIMIT_MB = int(os.environ.get("TELEGRAM_UPLOAD_LIMIT_MB", "50"))
 # Как часто проверять обновления yt-dlp (в часах).
 UPDATE_INTERVAL_HOURS = 24
 
+# Файл cookies в формате Netscape (cookies.txt).
+# YouTube часто требует авторизацию ("Sign in to confirm you're not a bot").
+# Если файл существует — он автоматически передаётся в yt-dlp.
+COOKIES_FILE = Path(os.environ.get("COOKIES_FILE", "/home/pi/youtube-bot/cookies.txt"))
+
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=logging.INFO,
@@ -129,6 +134,10 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
         "--print", "after_move:filepath",  # печатает итоговый путь
         "--no-simulate",
     ]
+
+    # Если есть файл cookies — передаём его (обходит "Sign in to confirm you're not a bot").
+    if COOKIES_FILE.exists():
+        cmd += ["--cookies", str(COOKIES_FILE)]
 
     if quality == "mp3":
         cmd += [

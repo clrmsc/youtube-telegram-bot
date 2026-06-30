@@ -6,6 +6,7 @@ venv/
 .env
 *.token
 config.py
+cookies.txt
 
 # Скачанные медиафайлы
 *.mp4
