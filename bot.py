@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from telegram import (
@@ -137,10 +138,13 @@ def build_keyboard(token: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
+def run_yt_dlp(url: str, quality: str, out_dir: Path, progress_cb=None) -> Path:
     """
     Синхронный запуск yt-dlp как отдельного процесса.
     Возвращает путь к скачанному файлу.
+
+    progress_cb(percent: float, speed: str, eta: str) — необязательный колбэк,
+    вызывается на каждой строке прогресса (для живого прогресс-бара).
     """
     out_template = str(out_dir / "%(title).180s [%(id)s].%(ext)s")
     cmd = [
@@ -148,8 +152,12 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
         "--no-playlist",
         "--restrict-filenames",
         "-o", out_template,
-        "--print", "after_move:filepath",  # печатает итоговый путь
+        # Итоговый путь и строки прогресса печатаем с метками, чтобы их различать.
+        "--print", "after_move:FILEPATH=%(filepath)s",
         "--no-simulate",
+        "--newline",
+        "--progress-template",
+        "download:PROGRESS=%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
     ]
 
     # Передаём cookies (обходит "Sign in to confirm you're not a bot").
@@ -181,14 +189,47 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
     cmd.append(url)
 
     logger.info("Запуск: %s", " ".join(cmd))
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"yt-dlp завершился с ошибкой:\n{proc.stderr[-1500:]}")
 
-    # Последняя непустая строка stdout — путь к файлу.
-    paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
-    if paths and Path(paths[-1]).exists():
-        return Path(paths[-1])
+    # stderr сливаем в stdout, чтобы читать один поток и не словить дедлок на буфере.
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    filepath: str | None = None
+    log_tail: list[str] = []  # последние строки вывода — для текста ошибки
+
+    for raw in proc.stdout:  # type: ignore[union-attr]
+        line = raw.rstrip("\n")
+        if not line:
+            continue
+        if line.startswith("PROGRESS="):
+            if progress_cb:
+                parts = line[len("PROGRESS="):].split("|")
+                pct_str = parts[0] if len(parts) > 0 else ""
+                speed = parts[1] if len(parts) > 1 else ""
+                eta = parts[2] if len(parts) > 2 else ""
+                try:
+                    pct = float(pct_str.strip().rstrip("%"))
+                except ValueError:
+                    pct = 0.0
+                progress_cb(pct, speed.strip(), eta.strip())
+        elif line.startswith("FILEPATH="):
+            filepath = line[len("FILEPATH="):].strip()
+        else:
+            log_tail.append(line)
+            if len(log_tail) > 40:
+                log_tail.pop(0)
+
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError("yt-dlp завершился с ошибкой:\n" + "\n".join(log_tail[-15:]))
+
+    if filepath and Path(filepath).exists():
+        return Path(filepath)
 
     # Фолбэк: самый свежий файл в каталоге.
     files = sorted(out_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -290,8 +331,37 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         work_dir = Path(tempfile.mkdtemp(prefix="ytbot_"))
         cleanup = True
 
+    # --- Живой прогресс-бар ---
+    loop = asyncio.get_running_loop()
+    progress_state = {"last_edit": 0.0, "last_text": ""}
+
+    async def _safe_edit(text: str) -> None:
+        # Telegram отклоняет правку с тем же текстом и частые правки — глушим ошибки.
+        try:
+            await query.edit_message_text(text)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def on_progress(pct: float, speed: str, eta: str) -> None:
+        # Вызывается из рабочего потока. Троттлим до ~раз в 3 секунды.
+        now = time.monotonic()
+        if now - progress_state["last_edit"] < 3.0:
+            return
+        filled = int(pct / 10)
+        bar = "█" * filled + "░" * (10 - filled)
+        text = (
+            f"⏳ Скачиваю {label} ({where})\n"
+            f"[{bar}] {pct:.0f}%\n"
+            f"⚡ {speed or '—'}   ⏳ ETA {eta or '—'}"
+        )
+        if text == progress_state["last_text"]:
+            return
+        progress_state["last_edit"] = now
+        progress_state["last_text"] = text
+        asyncio.run_coroutine_threadsafe(_safe_edit(text), loop)
+
     try:
-        file_path = await asyncio.to_thread(run_yt_dlp, url, quality, work_dir)
+        file_path = await asyncio.to_thread(run_yt_dlp, url, quality, work_dir, on_progress)
     except Exception as e:  # noqa: BLE001
         logger.exception("Ошибка скачивания")
         await query.edit_message_text(f"❌ Ошибка:\n{e}")
