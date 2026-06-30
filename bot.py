@@ -76,6 +76,13 @@ COOKIES_FILE = Path(os.environ.get("COOKIES_FILE", "/home/pi/youtube-bot/cookies
 # движок (например установленный из apt node), укажи его здесь: JS_RUNTIME=node
 JS_RUNTIME = os.environ.get("JS_RUNTIME", "").strip()
 
+# Удалённые компоненты EJS (решатель JS-challenge + движок).
+# Значение "ejs:npm" заставляет yt-dlp скачать решатель и deno с npm-реестра
+# своим загрузчиком — не требует системного deno/node и работает через прокси.
+# Альтернатива: "ejs:github". Пусто — отключить автозагрузку.
+# Компоненты кешируются после первого запуска.
+REMOTE_COMPONENTS = os.environ.get("REMOTE_COMPONENTS", "ejs:npm").strip()
+
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=logging.INFO,
@@ -155,6 +162,10 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
     # JS-движок для решения n-challenge (если задан явно, например node).
     if JS_RUNTIME:
         cmd += ["--js-runtimes", JS_RUNTIME]
+
+    # Автозагрузка EJS-компонентов (решатель + движок) с npm/github.
+    if REMOTE_COMPONENTS:
+        cmd += ["--remote-components", REMOTE_COMPONENTS]
 
     if quality == "mp3":
         cmd += [
