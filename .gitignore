@@ -1,0 +1,19 @@
+# Виртуальное окружение
+venv/
+.venv/
+
+# Секреты
+.env
+*.token
+config.py
+
+# Скачанные медиафайлы
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.part
+
+# Python
+__pycache__/
+*.pyc

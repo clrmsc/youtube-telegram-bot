@@ -1,0 +1,22 @@
+[Unit]
+Description=YouTube Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Замени pi на своего пользователя, если другой
+User=pi
+WorkingDirectory=/home/pi/youtube-bot
+# Токен и настройки. Можно вынести в EnvironmentFile (см. ниже).
+Environment=BOT_TOKEN=ВСТАВЬ_СЮДА_ТОКЕН
+Environment=SAVE_DIR=/media/share/youtube
+# Опционально: ограничить доступ конкретными user_id (через запятую)
+# Environment=ALLOWED_USER_IDS=123456789
+# Виртуальное окружение из шага установки:
+ExecStart=/home/pi/youtube-bot/venv/bin/python /home/pi/youtube-bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
