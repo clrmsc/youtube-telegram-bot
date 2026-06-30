@@ -72,9 +72,56 @@ journalctl -u youtube-bot -f
 
 ## Команды бота
 
-- Прислать ссылку YouTube → кнопки выбора качества и места сохранения
+- Прислать ссылку YouTube → превью (миниатюра, название, длительность) и кнопки
+  выбора качества и места сохранения
+- `/queue` — что сейчас качается и сколько в очереди
 - `/update` — обновить yt-dlp вручную
 - `/myid` — узнать свой Telegram ID (для `ALLOWED_USER_IDS`)
+
+Загрузки идут **по очереди** (по одной за раз — бережёт Pi). У активной и
+ожидающей загрузки есть кнопка **«Отмена»**.
+
+## Локальный Bot API server (файлы до 2 ГБ в чат)
+
+Чтобы отправлять в чат файлы крупнее 50 МБ (например, 1080p), нужен локальный
+Telegram Bot API server. Самый простой путь — Docker:
+
+```bash
+# 1. Получи api_id и api_hash на https://my.telegram.org → API development tools
+# 2. Подними сервер (замени значения):
+docker run -d --name telegram-bot-api --restart unless-stopped \
+  -p 8081:8081 \
+  -e TELEGRAM_API_ID=ВАШ_API_ID \
+  -e TELEGRAM_API_HASH=ВАШ_API_HASH \
+  aiogram/telegram-bot-api:latest
+```
+
+Затем в `.env` бота добавь:
+
+```
+LOCAL_BOT_API_URL=http://localhost:8081
+```
+
+Лимит файла поднимется до 2000 МБ автоматически. Перезапусти бота.
+
+> ⚠️ При первом переходе бота с облачного API на локальный Telegram требует
+> один раз «разлогинить» бота из облака (метод `logOut`). Если бот не
+> подключается к локальному серверу — выполни один раз:
+> `curl https://api.telegram.org/bot<ТОКЕН>/logOut`, затем перезапусти бота.
+
+## Переменные окружения (.env)
+
+| Переменная | Назначение |
+|------------|-----------|
+| `BOT_TOKEN` | токен от @BotFather (обязательно) |
+| `SAVE_DIR` | папка сохранения (по умолчанию `/media/share/youtube`) |
+| `ALLOWED_USER_IDS` | белый список ID через запятую |
+| `COOKIES_FROM_BROWSER` | cookies из браузера, напр. `firefox:/путь/к/профилю` |
+| `COOKIES_FILE` | путь к cookies.txt (если без браузера) |
+| `JS_RUNTIME` | JS-движок, напр. `node` |
+| `REMOTE_COMPONENTS` | EJS-компоненты, по умолчанию `ejs:npm` |
+| `LOCAL_BOT_API_URL` | адрес локального Bot API, напр. `http://localhost:8081` |
+| `TELEGRAM_UPLOAD_LIMIT_MB` | лимит отправки в чат (авто: 50 или 2000) |
 
 ## Ограничение доступа (рекомендуется)
 
