@@ -341,7 +341,15 @@ def main() -> None:
     # Обновим yt-dlp при старте.
     update_yt_dlp()
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .connect_timeout(30)
+        .read_timeout(30)
+        .write_timeout(60)
+        .pool_timeout(30)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("update", cmd_update))
