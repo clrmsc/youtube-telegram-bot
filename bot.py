@@ -61,9 +61,14 @@ TELEGRAM_UPLOAD_LIMIT_MB = int(os.environ.get("TELEGRAM_UPLOAD_LIMIT_MB", "50"))
 # Как часто проверять обновления yt-dlp (в часах).
 UPDATE_INTERVAL_HOURS = 24
 
-# Файл cookies в формате Netscape (cookies.txt).
 # YouTube часто требует авторизацию ("Sign in to confirm you're not a bot").
-# Если файл существует — он автоматически передаётся в yt-dlp.
+# Два способа передать cookies (приоритет у браузера):
+#
+# 1) COOKIES_FROM_BROWSER — брать cookies прямо из браузера на этой машине.
+#    Например: "firefox" или "firefox:/home/pi/snap/firefox/common/.mozilla/firefox"
+#    (для snap-версии Firefox нужно указать путь к профилю).
+# 2) COOKIES_FILE — файл cookies.txt в формате Netscape (если браузера на машине нет).
+COOKIES_FROM_BROWSER = os.environ.get("COOKIES_FROM_BROWSER", "").strip()
 COOKIES_FILE = Path(os.environ.get("COOKIES_FILE", "/home/pi/youtube-bot/cookies.txt"))
 
 logging.basicConfig(
@@ -135,8 +140,11 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path) -> Path:
         "--no-simulate",
     ]
 
-    # Если есть файл cookies — передаём его (обходит "Sign in to confirm you're not a bot").
-    if COOKIES_FILE.exists():
+    # Передаём cookies (обходит "Sign in to confirm you're not a bot").
+    # Приоритет: браузер на этой машине, иначе файл cookies.txt.
+    if COOKIES_FROM_BROWSER:
+        cmd += ["--cookies-from-browser", COOKIES_FROM_BROWSER]
+    elif COOKIES_FILE.exists():
         cmd += ["--cookies", str(COOKIES_FILE)]
 
     if quality == "mp3":
