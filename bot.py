@@ -226,7 +226,9 @@ def run_yt_dlp(url: str, quality: str, out_dir: Path, job: "Job | None" = None, 
     cmd = [
         sys.executable, "-m", "yt_dlp",
         "--no-playlist",
-        "--restrict-filenames",
+        # Сохраняем читаемое имя (кириллица, пробелы), но чистим символы,
+        # недопустимые на exfat/SMB/Windows — файл откроется с любого устройства.
+        "--windows-filenames",
         "-o", out_template,
         "--print", "after_move:FILEPATH=%(filepath)s",
         "--no-simulate",
